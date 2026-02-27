@@ -6,33 +6,43 @@ on:
       - main
 
 jobs:
-  build-and-deploy:
+  build:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
-      - name: Validate index.html exists
-        run: |
-          if [ ! -f index.html ]; then
-            echo "index.html not found!"
-            exit 1
-          fi
+      - name: Validate Docker Build
+        run: docker build -t mywebsite .
 
-      - name: Build Docker Image
-        run: docker build -t my-app .
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
 
-      - name: Deploy to EC2
-        uses: appleboy/ssh-action@v1.0.3
+    steps:
+      - name: Deploy to EC2 via SSH
+        uses: appleboy/ssh-action@v0.1.10
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            cd ~/my-static-app
-            git pull origin main
-            docker stop my-container || true
-            docker rm my-container || true
-            docker build -t my-app .
-            docker run -d -p 80:80 --name my-container my-app
+            cd ~
+
+            if [ ! -d "static-website" ]; then
+              git clone https://github.com/Vyshnavipriya259/static-website.git
+            else
+              cd static-website
+              git fetch --all
+              git reset --hard origin/main
+              cd ..
+            fi
+
+            cd static-website
+
+            sudo docker stop mycontainer || true
+            sudo docker rm mycontainer || true
+
+            sudo docker build -t mywebsite .
+            sudo docker run -d -p 80:80 --name mycontainer mywebsite
